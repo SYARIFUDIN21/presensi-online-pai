@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Absensi Perkuliahan</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+:root{
+  --primary:#2563eb;
+  --text:#0f172a;
+  --muted:#64748b;
+}
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Inter','Segoe UI',Arial,sans-serif}
+body{
+  min-height:100vh;
+  background:linear-gradient(135deg,#eef2ff,#f8fafc);
+  display:flex;justify-content:center;align-items:flex-start;
+  padding:20px 0;overflow-y:auto
+}
+canvas{position:fixed;inset:0;z-index:0}
+.card{
+  position:relative;z-index:1;width:100%;max-width:430px;
+  padding:26px 24px;border-radius:20px;
+  background:rgba(255,255,255,.88);backdrop-filter:blur(14px);
+  box-shadow:0 20px 40px rgba(15,23,42,.12)
+}
+.logo{width:100px;display:block;margin:0 auto 10px}
+.title{text-align:center;font-size:15px;font-weight:700;color:var(--text);margin-bottom:14px}
+.info{background:#f1f5f9;border-radius:14px;padding:12px;font-size:13px;margin-bottom:14px}
+.info div{margin-bottom:6px}
+.info b{color:var(--muted)}
+.list{max-height:280px;overflow-y:auto;margin-bottom:14px}
+.row{border-bottom:1px solid #e5e7eb;padding:8px 0}
+.row:last-child{border-bottom:none}
+.row-top{display:flex;align-items:center;gap:6px}
+.no{width:22px;font-size:12px}
+.nama{flex:1;font-size:13px}
+.nama small{color:#64748b}
+select{padding:6px;border-radius:8px;border:1px solid #e2e8f0;font-size:12px}
+textarea{
+  width:100%;margin-top:6px;padding:8px;border-radius:10px;
+  border:1px solid #e2e8f0;font-size:12px;display:none
+}
+button{
+  width:100%;padding:14px;border:none;border-radius:14px;
+  font-size:14px;font-weight:700;cursor:pointer;
+  background:linear-gradient(135deg,#2563eb,#1d4ed8);
+  color:#fff;box-shadow:0 10px 20px rgba(37,99,235,.35)
+}
+button:hover{transform:translateY(-1px)}
+</style>
+</head>
+
+<body>
+
+<canvas id="bg"></canvas>
+
+<div class="card">
+
+<img src="assets/logo-paic-2023.jpg.jpeg" class="logo">
+
+<div class="title">
+PRESENSI PERKULIAHAN<br>
+PAI C 2023 – IAINU KEBUMEN
+</div>
+
+<div class="info">
+  <div><b>Mata Kuliah:</b> <span id="mk"></span></div>
+  <div><b>Pertemuan:</b> <span id="pt"></span></div>
+  <div><b>Dosen:</b> <span id="dsn"></span></div>
+  <div><b>Penanggung Jawab:</b> <span id="pjSpan"></span></div>
+  <div><b>Tanggal:</b> <span id="tgl"></span></div>
+</div>
+
+<div class="list" id="listMahasiswa"></div>
+
+<button onclick="kirimWA()">KIRIM KE WHATSAPP</button>
+
+</div>
+
+<script>
+/* ================= DEFAULT SAFETY ================= */
+if(!localStorage.getItem("matkulAktif")){
+  localStorage.setItem("matkulAktif","Psikologi Pendidikan");
+}
+if(!localStorage.getItem("dosenAktif")){
+  localStorage.setItem("dosenAktif","Syukron Makmun, M.Pd");
+}
+if(!localStorage.getItem("pj")){
+  localStorage.setItem("pj","-");
+}
+
+/* ================= DATA UTAMA ================= */
+const matkulAktif = localStorage.getItem("matkulAktif");
+const dosenAktif  = localStorage.getItem("dosenAktif");
+const pjAktif     = localStorage.getItem("pj");
+
+const keyPt = "pertemuan_" + matkulAktif;
+let pertemuan = Number(localStorage.getItem(keyPt)) || 1;
+
+/* TANGGAL */
+const tanggal = new Date().toLocaleDateString("id-ID",{
+  weekday:"long",day:"numeric",month:"long",year:"numeric"
+});
+
+/* TAMPILKAN INFO */
+document.getElementById("mk").innerText = matkulAktif;
+document.getElementById("pt").innerText = "Ke-" + pertemuan;
+document.getElementById("dsn").innerText = dosenAktif;
+document.getElementById("pjSpan").innerText = pjAktif;
+document.getElementById("tgl").innerText = tanggal;
+
+/* ================= DATA MAHASISWA ================= */
+const mahasiswa = [
+ "Dewi Aryani|2311078","Dewi Anjani|2311079","Ulfatul Mukaromah|2311080",
+ "Khuni I'somah Nasfa|2311081","Ni'matul Mukarromah|2311085",
+ "M. Syafiq Kamili|2311086","M. Rifa'i|2311087","Sulthonul Aulia|2311088",
+ "Fadhilah Sherly An Nisa|2311090","Alif Musyarofah|2311092",
+ "Kholifatus Salamah|2311095","Salisul Afandi|2311097",
+ "Achmad Fikri Fadholi|2311098","Tiya Khuriyatus Sa'bana|2311099",
+ "Sri Mulyaningsih|2311100","Syarifudin|2311101","Baeti Rohmah|2311102",
+ "Khafsoh Ulfatun|2311106","Nurjanah|2311107","Anis Mubarok|2311109"
+].map(m=>{
+  const [nama,nim]=m.split("|");
+  return {nama,nim,status:"Hadir",ket:""};
+});
+
+/* RENDER */
+const list = document.getElementById("listMahasiswa");
+list.innerHTML = "";
+
+mahasiswa.forEach((m,i)=>{
+ list.innerHTML+=`
+ <div class="row">
+  <div class="row-top">
+    <div class="no">${i+1}.</div>
+    <div class="nama">${m.nama}<br><small>${m.nim}</small></div>
+    <select onchange="ubahStatus(${i},this.value)">
+      <option>Hadir</option>
+      <option>Izin</option>
+      <option>Sakit</option>
+      <option>Alpha</option>
+    </select>
+  </div>
+  <textarea id="k${i}" placeholder="Keterangan ${m.nama}"
+    oninput="mahasiswa[${i}].ket=this.value"></textarea>
+ </div>`;
+});
+
+function ubahStatus(i,val){
+ mahasiswa[i].status = val;
+ const t = document.getElementById("k"+i);
+ if(val==="Izin"||val==="Sakit"){
+   t.style.display="block";
+ }else{
+   t.style.display="none";
+   t.value="";
+   mahasiswa[i].ket="";
+ }
+}
+
+/* ================= KIRIM WHATSAPP ================= */
+function kirimWA(){
+ let pesan =
+`📋 PRESENSI PERKULIAHAN
+PAI C 2023 – IAINU Kebumen
+
+Mata Kuliah     : ${matkulAktif}
+Pertemuan       : Ke-${pertemuan}
+Dosen           : ${dosenAktif}
+Penanggung Jawab: ${pjAktif}
+Tanggal         : ${tanggal}
+
+DAFTAR KEHADIRAN:\n`;
+
+ mahasiswa.forEach((m,i)=>{
+   pesan += `${i+1}. ${m.nama} (${m.nim}) – ${m.status}\n`;
+   if(m.ket) pesan += `   Ket: ${m.ket}\n`;
+ });
+
+ localStorage.setItem(keyPt, pertemuan+1);
+
+ window.open(
+   "https://wa.me/?text="+encodeURIComponent(pesan),
+   "_blank"
+ );
+}
+
+/* ================= BACKGROUND GERAK ================= */
+const c=document.getElementById("bg"),x=c.getContext("2d");
+let w,h;function r(){w=c.width=innerWidth;h=c.height=innerHeight}
+addEventListener("resize",r);r();
+let d=[...Array(70)].map(()=>({x:Math.random()*w,y:Math.random()*h,vx:(Math.random()-.5)*.4,vy:(Math.random()-.5)*.4}));
+(function a(){
+ x.clearRect(0,0,w,h);
+ d.forEach((p,i)=>{
+  p.x+=p.vx;p.y+=p.vy;
+  if(p.x<0||p.x>w)p.vx*=-1;
+  if(p.y<0||p.y>h)p.vy*=-1;
+  x.beginPath();x.arc(p.x,p.y,2,0,7);
+  x.fillStyle="#c7d2fe";x.fill();
+  d.slice(i+1).forEach(q=>{
+    let l=Math.hypot(p.x-q.x,p.y-q.y);
+    if(l<120){
+      x.beginPath();x.moveTo(p.x,p.y);x.lineTo(q.x,q.y);
+      x.strokeStyle="rgba(199,210,254,.35)";
+      x.stroke();
+    }
+  });
+ });
+ requestAnimationFrame(a);
+})();
+</script>
+
+</body>
+</html>
